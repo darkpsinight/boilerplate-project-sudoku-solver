@@ -2,7 +2,6 @@
 
 const SudokuSolver = require("../controllers/sudoku-solver.js");
 
-const { numberFromLetter } = require("../helpers/helper.js");
 module.exports = function (app) {
   let solver = new SudokuSolver();
 
