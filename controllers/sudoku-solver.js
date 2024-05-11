@@ -82,6 +82,8 @@ class SudokuSolver {
 
     const solved = this.solvePuzzle(puzzleString);
 
+    console.log(solved);
+
     if (solved === false) {
       return errorMessages.puzzleCannotBeSolved;
     }
