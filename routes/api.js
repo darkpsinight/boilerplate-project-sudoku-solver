@@ -3,61 +3,78 @@
 const SudokuSolver = require("../controllers/sudoku-solver.js");
 
 module.exports = function (app) {
-  let solver = new SudokuSolver();
+  const solver = new SudokuSolver();
+
+  const valuePattern = /^[1-9]$/;
+  const coordinatePattern = /^[A-I][1-9]$/;
+  const puzzleCharPattern = /^[1-9.]+$/;
 
   app.route("/api/check").post((req, res) => {
-    const { puzzleString, coordinate, value } = req.body;
+    const { puzzle: puzzleString, coordinate, value } = req.body;
 
-    if (!puzzleString || !coordinate || !value) {
+    if (!puzzleString || !coordinate || value === undefined) {
       return res.json({ error: "Required field(s) missing" });
     }
 
-    if (solver.validate(puzzleString) !== "Valid puzzle string") {
-      return res.json({ error: solver.validate(puzzleString) });
+    if (puzzleString.length !== 81) {
+      return res.json({ error: "Expected puzzle to be 81 characters long" });
     }
 
-    // extract row and column values from coordinate string
-    const row = coordinate.split("")[0];
-    const column = coordinate.split("")[1];
-
-    // check coordinate validity
-    //If the coordinate submitted to api/check does not point to an existing grid cell, the returned value will be { error: 'Invalid coordinate'}
-    if (
-      !/[a-i]/i.test(row) ||
-      !/[1-9]/i.test(column) ||
-      coordinate.length !== 2
-    ) {
-      return res.json({ error: "Invalid coordinate" });
+    if (!puzzleCharPattern.test(puzzleString)) {
+      return res.json({ error: "Invalid characters in puzzle" });
     }
 
-    // check value validity
-    // If the value submitted to /api/check is not a number between 1 and 9, the returned value will be { error: 'Invalid value' }
-    if (!/^[1-9]$/.test(value)) {
+    if (!valuePattern.test(value)) {
       return res.json({ error: "Invalid value" });
     }
 
-    //get index of coordinate using extracted row and column values
-    const rowNumber = solver.numberFromLetter(row);
-    const columnIndex = parseInt(column, 10);
-    const index = (rowNumber - 1) * 9 + columnIndex - 1;
+    if (!coordinatePattern.test(coordinate)) {
+      return res.json({ error: "Invalid coordinate" });
+    }
 
-    // checks if a value at a specific position (index) matches the expected value.
-    if (puzzleString[index] == value) {
+    const row = coordinate[0].toUpperCase().charCodeAt(0) - 65;
+    const column = parseInt(coordinate[1], 10) - 1;
+
+    const index = row * 9 + column;
+    const currentValue = puzzleString[index];
+
+    if (currentValue === value.toString()) {
       return res.json({ valid: true });
     }
 
-    //...
+    const validRow = solver.checkRowPlacement(puzzleString, row, value);
+    const validCol = solver.checkColPlacement(puzzleString, column, value);
+    const validRegion = solver.checkRegionPlacement(
+      puzzleString,
+      row,
+      column,
+      value
+    );
+
+    const conflicts = [];
+    if (!validRow) {
+      conflicts.push("row");
+    }
+    if (!validCol) {
+      conflicts.push("column");
+    }
+    if (!validRegion) {
+      conflicts.push("region");
+    }
+
+    let response;
+    if (conflicts.length === 0) {
+      response = { valid: true };
+    } else {
+      response = { valid: false, conflict: conflicts };
+    }
+
+    return res.json(response);
   });
 
   app.route("/api/solve").post((req, res) => {
-    const { puzzleString, coordinate, value } = req.body;
-
-    if (!puzzleString || !coordinate || !value) {
-      return res.json({ error: "Required field missing" });
-    }
-
-    if (solver.validate(puzzleString) !== "Valid puzzle string") {
-      return res.json({ error: solver.validate(puzzleString) });
-    }
+    const puzzleString = req.body.puzzle;
+    const solution = solver.solve(puzzleString);
+    return res.json(solution);
   });
 };
